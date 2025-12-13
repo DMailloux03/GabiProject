@@ -29,28 +29,34 @@ To learn more about Next.js, take a look at the following resources:
 
 You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-## PocketBase integration
+## Supabase integration
 
-The exit ticket form persists submissions to PocketBase. To run it locally:
+Exit tickets are saved to Supabase and the teacher dashboard reads from the same project.
 
-1. Start your PocketBase instance (`./pocketbase serve` from the repo root).
-2. Create a collection named `exitTickets` with fields that match:
+1. [Create a Supabase project](https://supabase.com/dashboard/projects) and note the project URL and anon key.
+2. Create a table named `exit_tickets` with the following schema (all nullable except `mode`, `student_name`, `understanding`, `exit_ticket_response`):
    - `mode` (text)
-   - `name` (text)
-   - `partnerNames` (text, optional)
-   - `understanding` (number)
-   - `partnerUnderstanding` (number, optional)
-   - `exitTicketResponse` (text)
-   - `lingeringQuestions` (text, optional)
-3. Add a `.env.local` file in `my-app/` that contains the PocketBase URL the app should use:
+   - `student_name` (text)
+   - `partner_names` (text)
+   - `understanding` (numeric)
+   - `partner_understanding` (numeric)
+   - `exit_ticket_response` (text)
+   - `lingering_questions` (text)
+   - `created_at` (timestamp with time zone, default `now()`)
+3. Enable Row Level Security on `exit_tickets` and add policies:
+   - allow `insert` for the `anon` role (students submitting the form)
+   - allow `select` for the `authenticated` role (teachers signed in through Supabase Auth)
+4. In Supabase Auth, create teacher accounts that should be able to review tickets.
+5. Create `my-app/.env` (or `.env.local`) with:
 
 ```
-NEXT_PUBLIC_POCKETBASE_URL=http://127.0.0.1:8090
+NEXT_PUBLIC_SUPABASE_URL=your-project-url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
 ```
 
 ### Teacher dashboard
 
-Visit `/teacher` to access the teacher portal. It authenticates using your PocketBase `users` collection, so sign in with a teacher/admin account. Once authenticated you can refresh and review the exit ticket table, complete with timestamps and partner info.
+Visit `/teacher` and sign in with a Supabase Auth email/password. The dashboard lets you pick a day and review every exit ticket submitted on that date.
 
 ## Deploy on Vercel
 

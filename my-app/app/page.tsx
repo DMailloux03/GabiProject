@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 
-import { getPocketBaseClient } from "@/lib/pocketbase";
+import { getSupabaseClient } from "@/lib/supabaseClient";
 
 type ShapeType = "circle" | "square" | "rectangle" | "triangle";
 
@@ -282,20 +282,25 @@ export default function Home() {
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const submitRecord = async () => {
-      const pb = getPocketBaseClient();
+      const supabase = getSupabaseClient();
       try {
         setIsSubmitting(true);
         setSubmitState(undefined);
-        await pb.collection("exitTickets").create({
-          mode,
-          name,
-          partnerNames: mode === "partner" ? partnerName : null,
-          understanding: Number(understanding),
-          partnerUnderstanding:
-            mode === "partner" ? Number(partnerUnderstanding) : null,
-          exitTicketResponse: exitTicket,
-          lingeringQuestions: questions || null,
-        });
+        const { error } = await supabase.from("exit_tickets").insert([
+          {
+            mode,
+            student_name: name,
+            partner_names: mode === "partner" ? partnerName : null,
+            understanding: Number(understanding),
+            partner_understanding:
+              mode === "partner" ? Number(partnerUnderstanding) : null,
+            exit_ticket_response: exitTicket,
+            lingering_questions: questions || null,
+          },
+        ]);
+        if (error) {
+          throw error;
+        }
         setSubmitState({
           type: "success",
           message: "Ticket recorded. Thanks for sharing!",

@@ -1,38 +1,57 @@
 ﻿'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
 
-import { getPocketBaseClient } from "@/lib/pocketbase";
+import { getSupabaseClient } from "@/lib/supabaseClient";
 
 type ExitTicketRecord = {
   id: string;
-  mode: string;
-  name: string;
-  partnerNames?: string | null;
-  understanding?: number | null;
-  partnerUnderstanding?: number | null;
-  exitTicketResponse?: string | null;
-  lingeringQuestions?: string | null;
-  created: string;
+  mode: string | null;
+  student_name: string | null;
+  partner_names: string | null;
+  understanding: number | null;
+  partner_understanding: number | null;
+  exit_ticket_response: string | null;
+  lingering_questions: string | null;
+  created_at: string | null;
 };
 
-const TeacherPortal = () => {
-  const pb = getPocketBaseClient();
+const DATE_FORMAT: Intl.DateTimeFormatOptions = {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+};
 
+type SubmitState = { type: "error"; message: string } | null;
+
+const formatDateKey = (value?: string | null) => {
+  if (!value) return "";
+  return new Date(value).toISOString().split("T")[0];
+};
+
+const formatDisplayDate = (value: string) =>
+  new Date(value).toLocaleDateString(undefined, DATE_FORMAT);
+
+const supabase = getSupabaseClient();
+
+const TeacherPortal = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [isAuthed, setIsAuthed] = useState(pb.authStore.isValid);
-  const [error, setError] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [tickets, setTickets] = useState<ExitTicketRecord[]>([]);
   const [isFetchingTickets, setIsFetchingTickets] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [authError, setAuthError] = useState<SubmitState>(null);
   const [isMounted, setIsMounted] = useState(false);
 
   const dateOptions = useMemo(() => {
     const uniqueDays = Array.from(
       new Set(
-        tickets.map((ticket) => new Date(ticket.created).toISOString().split("T")[0]),
+        tickets
+          .map((ticket) => formatDateKey(ticket.created_at))
+          .filter(Boolean),
       ),
     ).sort((a, b) => (a > b ? -1 : 1));
     if (selectedDate && !uniqueDays.includes(selectedDate)) {
@@ -41,82 +60,112 @@ const TeacherPortal = () => {
     return uniqueDays;
   }, [tickets, selectedDate]);
 
+  const effectiveSelectedDate =
+    selectedDate ?? dateOptions[0] ?? new Date().toISOString().split("T")[0];
+
+  const filteredTickets = tickets.filter(
+    (ticket) => formatDateKey(ticket.created_at) === effectiveSelectedDate,
+  );
+
   const fetchTickets = async () => {
     try {
       setIsFetchingTickets(true);
-      const records = await pb.collection("exitTickets").getFullList<ExitTicketRecord>({
-        sort: "-created",
-      });
+      const { data, error } = await supabase
+        .from("exit_tickets")
+        .select(
+          "id, mode, student_name, partner_names, understanding, partner_understanding, exit_ticket_response, lingering_questions, created_at",
+        )
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const records = data ?? [];
       setTickets(records);
-    } catch (err) {
-      console.error(err);
-      setError(
-        err instanceof Error ? err.message : "Failed to load exit tickets.",
-      );
+      if (!selectedDate && records.length) {
+        setSelectedDate(formatDateKey(records[0].created_at));
+      }
+    } catch (error) {
+      console.error("Failed to load exit tickets", error);
+      setAuthError({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to fetch exit tickets. Please retry.",
+      });
     } finally {
       setIsFetchingTickets(false);
     }
   };
 
-  const effectiveSelectedDate =
-    selectedDate ?? dateOptions[0] ?? new Date().toISOString().split("T")[0];
-
-  const filteredTickets = tickets.filter((ticket) => {
-    const recordDay = new Date(ticket.created).toISOString().split("T")[0];
-    return recordDay === effectiveSelectedDate;
-  });
-
   const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     try {
       setIsLoading(true);
-      setError(null);
-      await pb.collection("users").authWithPassword(email, password);
-      setIsAuthed(true);
+      setAuthError(null);
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) throw error;
+      setSession(data.session);
       void fetchTickets();
-    } catch (err) {
-      console.error(err);
-      setError(
-        err instanceof Error ? err.message : "Unable to log in. Check credentials.",
-      );
+    } catch (error) {
+      console.error("Supabase auth error", error);
+      setAuthError({
+        type: "error",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Unable to log in. Check your credentials and try again.",
+      });
     } finally {
       setIsLoading(false);
     }
   };
 
-  useEffect(() => {
-    if (pb.authStore.isValid) {
-      void fetchTickets();
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!selectedDate) {
-      setSelectedDate(new Date().toISOString().split("T")[0]);
-    }
-  }, [selectedDate]);
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setSession(null);
+    setTickets([]);
+  };
 
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+    const init = async () => {
+      const { data } = await supabase.auth.getSession();
+      if (data.session) {
+        setSession(data.session);
+        await fetchTickets();
+      }
+    };
+    void init();
 
-  const handleLogout = () => {
-    pb.authStore.clear();
-    setIsAuthed(false);
-    setTickets([]);
-  };
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+      if (newSession) {
+        void fetchTickets();
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
 
   if (!isMounted) {
     return null;
   }
 
-  if (!isAuthed) {
+  if (!session) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100 px-4 py-10">
         <div className="w-full max-w-md rounded-2xl bg-white p-8 shadow-xl">
           <h1 className="text-2xl font-semibold text-slate-900">Teacher Login</h1>
           <p className="mt-2 text-sm text-slate-500">
-            Sign in with your PocketBase teacher credentials to review exit tickets.
+            Sign in with your Supabase teacher credentials to review exit tickets.
           </p>
           <form className="mt-6 space-y-4" onSubmit={handleLogin}>
             <label className="flex flex-col text-sm font-semibold text-slate-700">
@@ -146,7 +195,9 @@ const TeacherPortal = () => {
             >
               {isLoading ? "Signing in..." : "Sign in"}
             </button>
-            {error && <p className="text-center text-sm text-rose-600">{error}</p>}
+            {authError && (
+              <p className="text-center text-sm text-rose-600">{authError.message}</p>
+            )}
           </form>
         </div>
       </div>
@@ -172,11 +223,7 @@ const TeacherPortal = () => {
                 >
                   {dateOptions.map((date) => (
                     <option key={date} value={date}>
-                      {new Date(date).toLocaleDateString(undefined, {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
+                      {formatDisplayDate(date)}
                     </option>
                   ))}
                 </select>
@@ -197,7 +244,7 @@ const TeacherPortal = () => {
             </div>
           </div>
           <p className="text-sm text-slate-500">
-            {filteredTickets.length} ticket{filteredTickets.length === 1 ? "" : "s"} on {new Date(effectiveSelectedDate).toLocaleDateString()}.
+            {filteredTickets.length} ticket{filteredTickets.length === 1 ? "" : "s"} on {formatDisplayDate(effectiveSelectedDate)}.
           </p>
         </header>
 
@@ -216,30 +263,32 @@ const TeacherPortal = () => {
             {filteredTickets.map((ticket) => (
               <li key={ticket.id} className="grid gap-4 px-6 py-4 text-sm text-slate-700 lg:grid-cols-8">
                 <div>
-                  <p className="font-semibold text-slate-900">{ticket.name || "Unknown"}</p>
-                  {ticket.partnerNames && (
-                    <p className="text-xs text-slate-500">Partners: {ticket.partnerNames}</p>
+                  <p className="font-semibold text-slate-900">{ticket.student_name || "Unknown"}</p>
+                  {ticket.partner_names && (
+                    <p className="text-xs text-slate-500">Partners: {ticket.partner_names}</p>
                   )}
                 </div>
                 <div className="capitalize">{ticket.mode || "--"}</div>
                 <div>
                   <p className="font-semibold">{ticket.understanding ?? "--"}</p>
                 </div>
-                <div>{ticket.partnerNames ?? "--"}</div>
-                <div className="font-semibold">{ticket.partnerUnderstanding ?? "--"}</div>
-                <div className="text-slate-600">{ticket.exitTicketResponse ?? "--"}</div>
-                <div className="text-slate-600">{ticket.lingeringQuestions ?? "--"}</div>
+                <div>{ticket.partner_names ?? "--"}</div>
+                <div className="font-semibold">{ticket.partner_understanding ?? "--"}</div>
+                <div className="text-slate-600">{ticket.exit_ticket_response ?? "--"}</div>
+                <div className="text-slate-600">{ticket.lingering_questions ?? "--"}</div>
                 <div className="text-xs text-slate-500">
-                  {new Date(ticket.created).toLocaleTimeString([], {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {ticket.created_at
+                    ? new Date(ticket.created_at).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })
+                    : "--"}
                 </div>
               </li>
             ))}
             {filteredTickets.length === 0 && (
               <li className="px-6 py-10 text-center text-sm text-slate-500">
-                No tickets for {new Date(effectiveSelectedDate).toLocaleDateString()} yet.
+                No tickets for {formatDisplayDate(effectiveSelectedDate)} yet.
               </li>
             )}
           </ul>
