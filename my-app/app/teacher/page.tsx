@@ -172,6 +172,7 @@ const TeacherPortal = () => {
               Email
               <input
                 type="email"
+                autoComplete="email"
                 className="mt-1 rounded-xl border border-slate-200 px-4 py-3 text-base text-slate-900 outline-none focus:ring-2 focus:ring-amber-400"
                 value={email}
                 onChange={(event) => setEmail(event.target.value.toLowerCase())}
@@ -182,6 +183,7 @@ const TeacherPortal = () => {
               Password
               <input
                 type="password"
+                autoComplete="current-password"
                 className="mt-1 rounded-xl border border-slate-200 px-4 py-3 text-base text-slate-900 outline-none focus:ring-2 focus:ring-amber-400"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -196,7 +198,9 @@ const TeacherPortal = () => {
               {isLoading ? "Signing in..." : "Sign in"}
             </button>
             {authError && (
-              <p className="text-center text-sm text-rose-600">{authError.message}</p>
+              <p className="text-center text-sm text-rose-600" role="status">
+                {authError.message}
+              </p>
             )}
           </form>
         </div>
@@ -220,6 +224,7 @@ const TeacherPortal = () => {
                   className="ml-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm"
                   value={effectiveSelectedDate}
                   onChange={(event) => setSelectedDate(event.target.value)}
+                  disabled={dateOptions.length === 0}
                 >
                   {dateOptions.map((date) => (
                     <option key={date} value={date}>

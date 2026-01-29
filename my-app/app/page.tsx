@@ -171,6 +171,10 @@ const FloatingShapes = () => {
 
     measureBounds();
 
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
     const shapeCount =
       typeof window !== "undefined" && window.innerWidth < 768
         ? Math.floor(DEFAULT_SHAPE_COUNT * 0.55)
@@ -229,13 +233,16 @@ const FloatingShapes = () => {
       frameRef.current = requestAnimationFrame(animate);
     };
 
-    frameRef.current = requestAnimationFrame(animate);
+    if (!prefersReducedMotion) {
+      frameRef.current = requestAnimationFrame(animate);
+    }
 
     const handleResize = () => {
       measureBounds();
-      shapesRef.current.forEach((shape) =>
-        clampShapeToBounds(shape, boundsRef.current),
-      );
+      shapesRef.current.forEach((shape, index) => {
+        clampShapeToBounds(shape, boundsRef.current);
+        applyShapeTransform(nodeRefs.current[index], shape);
+      });
     };
 
     window.addEventListener("resize", handleResize);
@@ -365,6 +372,7 @@ export default function Home() {
                 <button
                   key={option.id}
                   type="button"
+                  aria-pressed={active}
                   className={`rounded-2xl px-4 py-3 text-left transition ${
                     active
                       ? "border-0 bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 text-white shadow-lg shadow-orange-400/30"
@@ -392,7 +400,8 @@ export default function Home() {
             <label className="flex flex-col gap-2 text-left text-sm font-semibold text-zinc-700 dark:text-zinc-200">
               Name
               <input
-                className="rounded-xl border border-zinc-200 bg-white/80 px-4 py-3 text-base text-zinc-900 outline-none ring-offset-2 transition focus:ring-2 focus:ring-amber-400 dark:border-white/10 dark:bg-zinc-900/60 dark:text-white w-[99%] sm:w-full"
+                autoComplete="name"
+                className="w-full rounded-xl border border-zinc-200 bg-white/80 px-4 py-3 text-base text-zinc-900 outline-none ring-offset-2 transition focus:ring-2 focus:ring-amber-400 dark:border-white/10 dark:bg-zinc-900/60 dark:text-white"
                 placeholder="e.g., Alex Rivera"
                 value={name}
                 onChange={(event) => setName(event.target.value)}
@@ -403,7 +412,8 @@ export default function Home() {
               <label className="flex flex-col gap-2 text-left text-sm font-semibold text-zinc-700 dark:text-zinc-200">
                 Partner name(s)
                 <input
-                  className="rounded-xl border border-zinc-200 bg-white/80 px-4 py-3 text-base text-zinc-900 outline-none ring-offset-2 transition focus:ring-2 focus:ring-amber-400 dark:border-white/10 dark:bg-zinc-900/60 dark:text-white w-[99%] sm:w-full"
+                  autoComplete="name"
+                  className="w-full rounded-xl border border-zinc-200 bg-white/80 px-4 py-3 text-base text-zinc-900 outline-none ring-offset-2 transition focus:ring-2 focus:ring-amber-400 dark:border-white/10 dark:bg-zinc-900/60 dark:text-white"
                   placeholder="e.g., Jamie + Taylor"
                   value={partnerName}
                   onChange={(event) => setPartnerName(event.target.value)}
@@ -413,6 +423,7 @@ export default function Home() {
             ) : (
               <div className="hidden md:block" />
             )}
+          </div>
           <fieldset className="flex flex-col gap-3 text-left text-sm font-semibold text-zinc-700 dark:text-zinc-200">
             <legend>Understanding today&apos;s lesson</legend>
             <div className="grid grid-cols-2 gap-2 text-center text-xs text-zinc-500 dark:text-zinc-400 sm:grid-cols-3 md:grid-cols-5">
@@ -425,28 +436,28 @@ export default function Home() {
                     type="radio"
                     name="understanding"
                     className="sr-only"
-                      value={value}
-                      checked={understanding === value}
-                      onChange={() => setUnderstanding(value)}
-                    />
-                    <span
-                      className={`inline-flex h-10 w-10 items-center justify-center rounded-full text-base font-semibold ${
-                        understanding === value
-                          ? "bg-amber-500 text-white"
-                          : "bg-zinc-100 dark:bg-zinc-800"
-                      }`}
-                    >
-                      {index + 1}
-                    </span>
-                    <small className="text-[11px]">
-                      {index === 0 && "Confused"}
-                      {index === 2 && "Neutral"}
-                      {index === 4 && "Got it"}
-                    </small>
-                  </label>
-                ))}
-              </div>
-            </fieldset>
+                    value={value}
+                    checked={understanding === value}
+                    onChange={() => setUnderstanding(value)}
+                  />
+                  <span
+                    className={`inline-flex h-10 w-10 items-center justify-center rounded-full text-base font-semibold ${
+                      understanding === value
+                        ? "bg-amber-500 text-white"
+                        : "bg-zinc-100 dark:bg-zinc-800"
+                    }`}
+                  >
+                    {index + 1}
+                  </span>
+                  <small className="text-[11px]">
+                    {index === 0 && "Confused"}
+                    {index === 2 && "Neutral"}
+                    {index === 4 && "Got it"}
+                  </small>
+                </label>
+              ))}
+            </div>
+          </fieldset>
             {mode === "partner" && (
               <fieldset className="flex flex-col gap-3 text-left text-sm font-semibold text-zinc-700 dark:text-zinc-200">
                 <legend>How well did your partner understand?</legend>
@@ -483,9 +494,8 @@ export default function Home() {
                 </div>
               </fieldset>
             )}
-          </div>
           <label className="flex flex-col gap-2 text-left text-sm font-semibold text-zinc-700 dark:text-zinc-200">
-            Exit ticket question
+            Exit ticket awnser
             <textarea
               className="min-h-[120px] rounded-xl border border-zinc-200 bg-white/80 px-4 py-3 text-base text-zinc-900 outline-none ring-offset-2 transition focus:ring-2 focus:ring-amber-400 dark:border-white/10 dark:bg-zinc-900/60 dark:text-white"
               placeholder="Summarize the key idea from today in your own words."
