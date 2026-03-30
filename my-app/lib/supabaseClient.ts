@@ -9,10 +9,21 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+const teacherSupabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
+    storageKey: "exit-ticket-teacher-auth",
   },
 });
 
-export const getSupabaseClient = () => supabase;
+const publicSupabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+    storageKey: "exit-ticket-public-auth",
+  },
+});
+
+export const getTeacherSupabaseClient = () => teacherSupabase;
+export const getPublicSupabaseClient = () => publicSupabase;

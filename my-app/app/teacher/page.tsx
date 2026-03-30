@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 
-import { getSupabaseClient } from "@/lib/supabaseClient";
+import { getTeacherSupabaseClient } from "@/lib/supabaseClient";
 
 type ExitTicketRecord = {
   id: string;
@@ -33,7 +33,7 @@ const formatDateKey = (value?: string | null) => {
 const formatDisplayDate = (value: string) =>
   new Date(value).toLocaleDateString(undefined, DATE_FORMAT);
 
-const supabase = getSupabaseClient();
+const supabase = getTeacherSupabaseClient();
 
 const TeacherPortal = () => {
   const [email, setEmail] = useState("");

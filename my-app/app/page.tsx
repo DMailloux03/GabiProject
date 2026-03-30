@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useRef, useState } from "react";
 
-import { getSupabaseClient } from "@/lib/supabaseClient";
+import { getPublicSupabaseClient } from "@/lib/supabaseClient";
 
 type ShapeType = "circle" | "square" | "rectangle" | "triangle";
 
@@ -286,10 +286,27 @@ export default function Home() {
     { type: "success" | "error"; message: string } | undefined
   >();
 
+  const getErrorMessage = (error: unknown) => {
+    if (error instanceof Error) {
+      return error.message;
+    }
+
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "message" in error &&
+      typeof error.message === "string"
+    ) {
+      return error.message;
+    }
+
+    return "Something went wrong saving your ticket. Please try again.";
+  };
+
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const submitRecord = async () => {
-      const supabase = getSupabaseClient();
+      const supabase = getPublicSupabaseClient();
       try {
         setIsSubmitting(true);
         setSubmitState(undefined);
@@ -322,10 +339,7 @@ export default function Home() {
         console.error("Failed to save exit ticket", error);
         setSubmitState({
           type: "error",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Something went wrong saving your ticket. Please try again.",
+          message: getErrorMessage(error),
         });
       } finally {
         setIsSubmitting(false);
